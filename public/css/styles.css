@@ -1,0 +1,160 @@
+body {
+    font-family: "Roboto", "Open Sans", "Arial", sans-serif !important;
+    font-size: 16px;
+    line-height: 1.6em;
+    font-optical-sizing: auto;
+    font-variation-settings: "wdth" 100;
+    color: #333; /* Standard jsPsych text color */
+    background-color: #fff;
+}
+
+html {
+    height: 100vh;
+}
+
+/* jsPsych container */
+.jspsych-content {
+    max-width: 1200px;
+    width: 95%;
+    margin: auto;
+    box-sizing: border-box;
+}
+
+.left {
+    text-align: left;
+}
+
+/* demographic form layout */
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+}
+
+.container section {
+    flex: 1 1 400px;
+    min-width: 260px;
+    text-align: left;
+}
+
+/* input styling - Updated to match jsPsych / SurveyJS standard inputs */
+.demo-input {
+    box-sizing: border-box;
+    padding: 10px 14px; /* Adjusted closer to SurveyJS defaults */
+    margin-top: 10px;
+    border: 1px solid #d4d4d4; /* jsPsych standard borders */
+    background: #ffffff; /* Typically white backgrounds for inputs */
+    color: #333;
+    width: 100%;
+    max-width: 400px;
+    border-radius: 4px; /* Slightly sharper radius used in jsPsych */
+    font-family: inherit;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+}
+
+.demo-input:focus {
+    outline: none;
+    border-color: #1ab394; /* SurveyJS/jsPsych default active/primary color */
+}
+
+/* IAT stimulus */
+#jspsych-iat-stim {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: bold;
+    color: #000;
+}
+
+#jspsych-iat-stim img {
+    transform: translateY(-20%);
+    max-width: 500px;
+    height: auto;
+    max-height: 350px;
+}
+
+/* IAT category alignment */
+#trial_left_align {
+    left: 15% !important;
+}
+
+#trial_right_align {
+    right: 15% !important;
+}
+
+/* error X */
+#wrongImgContainer {
+    top: -60vh !important;
+}
+
+/* survey formatting */
+.jspsych-survey-html-form-preamble {
+    width: 100%;
+    margin-bottom: 2em;
+}
+
+.jspsych-survey-html-form-preamble h1 {
+    width: 100%;
+    font-weight: 700 !important; /* jsPsych uses 700 standard bold */
+    text-align: left;
+    font-size: 2em;
+    margin-bottom: 0.5em;
+}
+
+/* Standard jsPsych buttons */
+.jspsych-btn {
+    display: inline-block;
+    padding: 8px 14px;
+    margin-top: 24px !important;
+    margin-left: 0 !important;
+    font-size: 14px;
+    font-weight: 400;
+    font-family: inherit;
+    cursor: pointer;
+    line-height: 1.4;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    background-image: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #333;
+    background-color: #fff;
+    border-color: #ccc;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.jspsych-btn:hover {
+    background-color: #e6e6e6;
+    border-color: #adadad;
+}
+
+/* mobile responsiveness */
+@media (max-width: 768px) {
+    #trial_left_align {
+        left: 5% !important;
+    }
+
+    #trial_right_align {
+        right: 5% !important;
+    }
+
+    #jspsych-iat-stim img {
+        max-width: 70vw;
+        height: auto;
+        transform: none;
+    }
+
+    .container {
+        flex-direction: column;
+    }
+
+    .container section {
+        width: 100%;
+    }
+
+    .jspsych-content {
+        width: 95%;
+    }
+}

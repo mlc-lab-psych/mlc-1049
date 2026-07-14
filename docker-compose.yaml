@@ -1,0 +1,22 @@
+services:
+  redis:
+    image: redis:7
+    container_name: mlc-1049-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app_net
+  mlc-1049:
+    build: 
+      context: .
+      dockerfile: Containerfile
+    container_name:  mlc-1049
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    networks:
+      - app_net
+
+networks:
+  app_net:

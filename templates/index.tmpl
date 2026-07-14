@@ -1,0 +1,947 @@
+{{ define "index.tmpl"}}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IAT Experiment Template</title>
+    <script defer src="https://unpkg.com/jspsych@8.0.0"></script>
+    <link href="https://unpkg.com/jspsych@8.0.0/css/jspsych.css" rel="stylesheet" type="text/css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="preload" as="image" href="/static/images/words_animate_Cat1.png">
+    <link rel="preload" as="image" href="/static/images/words_animate_Cat2.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+
+    <script defer src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+    <script defer src="https://unpkg.com/@jspsych/plugin-survey-html-form@1.0.3"></script>
+    <script defer src="https://unpkg.com/@jspsych/plugin-iat-html@1.1.3"></script>
+    <script defer src="https://unpkg.com/@jspsych/plugin-survey-multi-select@1.1.3"></script>
+
+    <script>
+        const apiBase = "{{ .ServerHost }}";
+        console.warn = () => {};
+
+        function getParamFromURL(name) {
+            name = name.replace(/\[/, "\\[").replace(/]/, "\\]");
+            let regex = new RegExp("[?&]" + name + "=([^&#]*)");
+            let results = regex.exec(window.location.href);
+            try{
+                let decoded = decodeURIComponent(results[1])
+                return results ? decoded : "";
+            }
+            catch(error){
+                return ""
+            }
+        }
+
+        let timeline = []
+        let worker_id = getParamFromURL('PROLIFIC_PID');
+
+        async function preload_images(data){
+            let preloadedImages = []
+            data.forEach(img=>{
+                let ogImg = new Image();
+                ogImg.src = img;
+                preloadedImages.push(ogImg)
+            })
+            return preloadedImages
+        }
+
+        async function fetchData() {
+            try {
+                if (worker_id === "") {
+                    console.log("No ID!")
+                    response = await fetch(`${apiBase}/api/v1/data`, {
+                        method: "GET",
+                    }); // Make the request
+                } else {
+                    response = await fetch(`${apiBase}/api/v1/data`, {
+                        method: "PUT",
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            worker_id: encodeURIComponent(worker_id)
+                        })
+                    }); // Make the request
+                }
+                
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const result = await response.json();
+                const data = result.data;
+                const session = result.session
+
+                console.log(data)
+
+                let current_block = 0
+                let test_block_stimuli = []
+                let temp_block = []
+
+                for(let i = 0; i < data['test_stimuli'].length; i++){
+                    if(data['test_stimuli'][i]['block'] === current_block){
+                        temp_block.push(data['test_stimuli'][i])
+                        if(data['test_stimuli'][i]['stimulus_type'] === "image"){
+                            const image_url = data['test_stimuli'][i]['stimulus'];
+                            data['test_stimuli'][i]['stimulus'] = `<img src="${image_url}"  alt=""/>`;
+                        }
+                    }
+                    else{
+                        test_block_stimuli.push(temp_block)
+                        current_block += 1
+                        temp_block = [data['test_stimuli'][i]]
+                        if(data['test_stimuli'][i]['stimulus_type'] === "image"){
+                            const image_url = data['test_stimuli'][i]['stimulus'];
+                            data['test_stimuli'][i]['stimulus'] = `<img src="${image_url}"  alt=""/>`;
+                        }
+                    }
+                }
+
+                test_block_stimuli.push(temp_block)
+
+                images = data['images']
+                await preload_images(images).then((result) => {
+                    images = result
+                })
+
+                category_displays = data['category_display']
+                cat_img = data['category_word_image']
+
+                test_stimuli = test_block_stimuli;
+
+                console.log(category_displays, cat_img, test_stimuli)
+
+                initializeJsPsych(worker_id, session);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        async function askForProlificID() {
+            document.body.innerHTML = `
+                <style>
+                    body {
+                        font-family: Roboto, sans-serif;
+                        background: white;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                    }
+
+                    .card {
+                        width: 100%;
+                        max-width: 650px;
+                        padding: 40px;
+                        box-sizing: border-box;
+                    }
+
+                    h2 {
+                        margin-top: 0;
+                    }
+
+                    label {
+                        display: block;
+                        font-size: .8rem;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: .05em;
+                        color: #3d6b4f;
+                        margin-bottom: 8px;
+                    }
+
+                    input {
+                        width: 100%;
+                        padding: 12px;
+                        font-size: 16px;
+                        box-sizing: border-box;
+                    }
+
+                    .hint {
+                        color: #777;
+                        font-size: .85rem;
+                        margin-top: 8px;
+                    }
+
+                    button {
+                        margin-top: 30px;
+                        padding: 12px 28px;
+                        font-size: 16px;
+                        cursor: pointer;
+                    }
+                </style>
+
+                <div class="card">
+                    <h2>Prolific ID</h2>
+
+                    <input
+                        id="pid"
+                        value="${worker_id}"
+                        placeholder="Enter your Prolific PID"
+                    >
+
+                    <div class="hint">
+                        This should already be filled in if you opened the study from Prolific.
+                    </div>
+
+                    <button id="continue">
+                        Continue
+                    </button>
+                </div>
+            `;
+
+            document.getElementById("continue").onclick = async () => {
+                const pid = document.getElementById("pid").value.trim();
+
+                if (!pid) {
+                    alert("Please enter your Prolific PID.");
+                    return;
+                }
+
+                worker_id = pid;
+
+                document.body.innerHTML = "";
+
+                await fetchData();
+            };
+        }
+
+        function initializeJsPsych(worker_id, session){
+            const jsPsych = initJsPsych();
+
+
+            let subject_id = crypto.randomUUID();
+            let study_id = getParamFromURL('STUDY_ID') || "NULL";
+            let session_id = getParamFromURL('SESSION_ID') || "NULL";
+
+            jsPsych.data.addProperties({
+                subject: subject_id,
+                worker_id: (worker_id ? worker_id : subject_id),
+                study_id: study_id,
+                session_id: session_id
+            });
+
+            let instructions = []
+            let tests = []
+
+            const welcome_block = {
+                type: jsPsychHtmlKeyboardResponse,
+                version:"",
+                stimulus: "<p>Welcome to the experiment.</p><p>Press any key to begin.</p>"
+            };
+
+            timeline.push(welcome_block)
+
+            const consent ={
+                type: jsPsychSurveyHtmlForm,
+                preamble: '',
+                html: `
+                    <div style="max-width: 1200px" class="left">
+                            <label style="text-align: left !important;">The research study you are about to do is sponsored by Rochester Institute of Technology (RIT). The task you are asked to do involves making simple responses to images, words, and sentences.
+                            <br><br>This task has no direct benefits. We do not anticipate any psychosocial, social, or legal risks. Participants may become fatigued or frustrated due to the length of the study. The responses you submit as part of this task will be stored on a secure server and accessible only to researchers who have been approved by RIT. Processed data with all identifiers removed could be used for future research studies or distributed to another investigator for future research studies without additional informed consent from the subject or a legally authorized representative.
+
+                            <br><br>You are free to decline to participate, to end participation at any time for any reason, or to refuse to answer any individual question without penalty or loss of earned compensation. We will not retain data from partial responses. If you would like to withdraw your data after participating, you may send an email to lrrgsh@rit.edu.
+
+                            <br><br>If you have any questions or concerns about this task, please contact the principal investigator: Prof. Lilia Rissman at lrrgsh@rit.edu.
+
+                            <br><br>If you are not satisfied with response of the research team, have more questions, or want to talk with someone about your rights as a research participant, you should contact RIT’s Human Subjects Research Office at 585-475-7673, hmfsrs@rit.edu.
+
+                            <br><br>If you agree to participate, please click "I agree" below. If not, please close your browser window now.</label><br><br>
+                            <input type="checkbox" id="agree" name="consent" value="Agreed" required>
+                            <label for="agree">I agree</label><br><br>
+                    </div>
+                `
+            }
+
+            timeline.push(consent)
+
+            const block_start = {
+                type: jsPsychHtmlKeyboardResponse,
+                choices: [" "],
+                stimulus: "<p>In this study you will complete an Implicit Association Test (IAT) in which you will be asked to sort words and pictures into groups as fast as you can.<br/><br/> You will sort words into categories that don’t have names in English - we will just call them ‘Category 1 Words’ and ‘Category 2 Words’. <br/><br/>You will start by practicing sorting words into Categories 1 and 2 to learn which words go in which category. <br/><br/><br/><br/>" +
+                    "Press the <b>space bar</b> when you are ready to start.</p>"
+            };
+
+            timeline.push(block_start)
+
+            const block_0 = {
+                type: jsPsychHtmlKeyboardResponse,
+                choices: [" "],
+                stimulus:`<img src='/static/images/${cat_img}' style='max-width:500px;width:100%;height:auto;' alt="">` +
+                    `<p>Put a left finger on the D key for items that belong to the category <b>${category_displays[1][0]}</b>. <br/><br/>` +
+                    `Put a right finger on the K key for items that belong to the category <b>${category_displays[1][1]}</b>. <br/><br/>` +
+                    "Items will appear one at a time. <br/><br/>" +
+                    "If you make a mistake, a red X will appear. Press the correct key to continue. Go as fast as you can while being accurate. <br/><br/><br/><br/>" +
+                    "Press the <b>space bar</b> when you are ready to start.</p>"
+            }
+
+            instructions.push(block_0)
+
+            const block_2 = {
+                type: jsPsychHtmlKeyboardResponse,
+                choices: [" "],
+                stimulus: `<p>Now you will see a series of pictures instead of words.<br/><br/> Use the D & K keys to decide whether you think each picture goes best with the Category 1 words or the Category 2 words. <br/><br/>You will not receive feedback on these trials, as there is no right answer. <br/><br/>You do NOT need to evenly split the pictures across the two categories (i.e., you do not need to split them 50/50). <br/><br/><br/>Press the <b>space bar</b> when you are ready to start.</p>`
+            }
+            instructions.push(block_2)
+
+            const block_3 = {
+                type: jsPsychHtmlKeyboardResponse,
+                choices: [" "],
+                stimulus: `<p>You will continue sorting words and pictures for the remainder of the task.
+
+                            <br/><br/>For the words, sort them as you have been instructed into Category 1 words and Category 2 words. You will continue receiving feedback on these trials.
+
+                            <br/><br/>For each image, decide whether this image should be grouped with the Category 1 or Category 2 words. You will not receive feedback.
+
+                            <br/><br/>You will see a series of 10 words followed by 6 images. This pattern will alternate for another 90 trials.
+
+                            <br/><br/><br/>Press the <b>space bar</b> when you are ready to start.</p>`
+            }
+
+            instructions.push(block_3)
+
+            let time;
+
+            const test_image = {
+                type: jsPsychIatHtml,
+                stim_key_association: 'left',
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: false,
+                display_feedback: false,
+                trial_duration: 3000,
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[0][0],
+                right_category_label: category_displays[0][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    order:jsPsych.timelineVariable('order'),
+                },
+                on_start: function(test_image){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+            
+            const test_0 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000,
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[0][0],
+                right_category_label: category_displays[0][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order'),
+                },
+                on_start: function(test_1){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_0)
+            tests.push(test_image)
+
+            const test_2 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000, //Only if display_feedback is false
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[2][0],
+                right_category_label: category_displays[2][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order')
+                },
+                on_start: function(test_2){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_2)
+            tests.push(test_image)
+
+            const test_4 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000, //Only if display_feedback is false
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[4][0],
+                right_category_label: category_displays[4][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order')
+                },
+                on_start: function(test_3){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_4)
+            tests.push(test_image)
+
+            const test_6 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000, //Only if display_feedback is false
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[6][0],
+                right_category_label: category_displays[6][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order')
+                },
+                on_start: function(test_3){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_6)
+            tests.push(test_image)
+
+            const test_8 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000, //Only if display_feedback is false
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[8][0],
+                right_category_label: category_displays[8][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order')
+                },
+                on_start: function(test_3){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_8)
+            tests.push(test_image)
+
+            const test_10 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000, //Only if display_feedback is false
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[10][0],
+                right_category_label: category_displays[10][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order')
+                },
+                on_start: function(test_3){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_10)
+            tests.push(test_image)
+
+            const test_12 = {
+                type: jsPsychIatHtml,
+                stim_key_association: jsPsych.timelineVariable('association'),
+                html_when_wrong: '<span style="color: red; font-size: 80px">X</span>',
+                bottom_instructions: '<p>If you press the wrong key, a red X will appear. Press the correct key to continue</p>',
+                stimulus: jsPsych.timelineVariable('stimulus'),
+                stimulus_duration: 1000,
+                force_correct_key_press: true,
+                display_feedback: true,
+                trial_duration: 3000, //Only if display_feedback is false
+                left_category_key: 'd',
+                right_category_key: 'k',
+                left_category_label: category_displays[12][0],
+                right_category_label: category_displays[12][1],
+                response_ends_trial: true,
+                data:{
+                    trial:jsPsych.timelineVariable('trial'),
+                    block:jsPsych.timelineVariable('block'),
+                    trial_type_airtable:jsPsych.timelineVariable('trial_type'),
+                    stimulus_type:jsPsych.timelineVariable('stimulus_type'),
+                    item:jsPsych.timelineVariable('item'),
+                    category:jsPsych.timelineVariable('category'),
+                    category_display:jsPsych.timelineVariable('category_display'),
+                    stimulus:jsPsych.timelineVariable('stimulus'),
+                    correct_key:jsPsych.timelineVariable('correct_key'),
+                    order:jsPsych.timelineVariable('order')
+                },
+                on_start: function(test_3){
+                    time = Date.now()
+                },
+                on_finish: function(data){
+                    data['rt_correct_response'] = Date.now() - time
+                    time = 0
+                }
+            };
+
+            tests.push(test_12)
+            tests.push(test_image)
+            
+            for (let i = 0; i < test_stimuli.length; i++) {
+                if(i <= 2){
+                    timeline.push(instructions[i]);
+                }
+                let test_procedure = {
+                    timeline: [tests[i]],
+                    timeline_variables: test_stimuli[i]
+                };
+                timeline.push(test_procedure);
+            }
+
+            const thanking = {
+                type: jsPsychHtmlKeyboardResponse,
+                choices: [" "],
+                stimulus: "<p>Thank you for completing the association task. You will now fill out a short questionnaire about yourself <br/><br/><br/><br/>" +
+                    "Press the <b>space bar</b> when you are ready to start.</p>"
+            };
+
+            timeline.push(thanking)
+
+            const demographics = {
+                type: jsPsychSurveyHtmlForm,
+                preamble: '<h1>DEMOGRAPHIC INFORMATION</h1>',
+                html: `
+
+                    <style>
+                          .container {
+                            display: flex;
+                            justify-content: center;
+                            flex-wrap: wrap;
+                            margin-top: 24px;
+                            gap: 48px 0;
+                            width:1100px;
+                            height:50vh;
+                            padding-bottom: 24px;
+                          }
+                          .column {
+                            width: 45%;
+                          }
+                          .column input[type="text"], .column input[type="radio"], .column input[type="checkbox"] {
+                            margin-top: 5px;
+                            margin-bottom: 15px;
+                          }
+
+                          .container section{
+                          width:50%;
+                          text-align: left;
+                          }
+
+                          .demo-input{
+                            padding: 18px 24px;
+                            margin-left: 12px;
+                            margin-top: 12px;
+                            border: none;
+                            outline:none;
+                            background: #f1f1f1;
+                            min-width: 200px;
+                            width: 100%;
+                            border-radius: 5px ;
+                          }
+
+                          .jspsych-content{
+                                text-align: left;
+                                margin: auto;
+                                height: 100vh;
+                                display: grid;
+                                place-content: center;
+                                place-items: start;
+                                width: 80%;
+                            }
+
+                        </style>
+                        <div class="container">
+                            <section>
+                                <label for="age" style="font-weight: bold">Age:</label><br>
+                                <input class="demo-input" placeholder="Enter your Age" type="text" id="age" name="age" required><br><br>
+                            </section>
+
+                            <section>
+                                <label style="font-weight: bold" for="nationality">Nationality:</label><br>
+                                <input type="text" class="demo-input" placeholder="Enter your Nationality" id="nationality" name="nationality" required><br><br>
+                            </section>
+
+                            <section>
+                                <label style="font-weight: bold">Race/Ethnicity (Select all that apply):</label><br>
+                                <input type="checkbox" id="race_white" name="race_ethnicity" value="White">
+                                <label for="race_white">White</label><br>
+                                <input type="checkbox" id="race_black" name="race_ethnicity" value="Black or African American">
+                                <label for="race_black">Black or African American</label><br>
+                                <input type="checkbox" id="race_asian" name="race_ethnicity" value="Asian">
+                                <label for="race_asian">Asian</label><br>
+                                <input type="checkbox" id="race_native" name="race_ethnicity" value="Native American or Alaska Native">
+                                <label for="race_native">Native American or Alaska Native</label><br>
+                                <input type="checkbox" id="race_hispanic" name="race_ethnicity" value="Hispanic or Latino">
+                                <label for="race_hispanic">Hispanic or Latino</label><br>
+                                <input type="checkbox" id="race_pacific" name="race_ethnicity" value="Native Hawaiian or Other Pacific Islander">
+                                <label for="race_pacific">Native Hawaiian or Other Pacific Islander</label><br>
+                                <input type="checkbox" id="race_other" name="race_ethnicity" value="Other">
+                                <label for="race_other">Other</label><br><br>
+
+                            </section>
+
+                            <section>
+                                <label style="font-weight: bold">Gender:</label><br>
+                                <input type="radio" id="male" name="gender" value="Male" required>
+                                <label for="male">Male</label><br>
+                                <input type="radio" id="female" name="gender" value="Female" required>
+                                <label for="female">Female</label><br>
+                                <input type="radio" id="third" name="gender" value="Third gender" required>
+                                <label for="third">Non-binary/third gender</label><br>
+                                <input type="radio" id="other" name="gender" value="Prefer not to say" required>
+                                <label for="other">Prefer not to say</label><br><br><br>
+                            </section>
+
+
+
+                        </div>
+                      `,
+                button_label: 'Continue'
+            }
+
+            timeline.push(demographics)
+
+            const demographics_two = {
+                type: jsPsychSurveyHtmlForm,
+                preamble: '<h1>DEMOGRAPHIC INFORMATION</h1>',
+                html: `
+                        <style>
+                          .container {
+                            display: flex;
+                            justify-content: start;
+                            flex-wrap: wrap;
+                            margin-top: 24px;
+                            gap: 48px 0;
+                            width:1100px;
+                            height:50vh;
+                            padding-bottom: 24px;
+                          }
+                          .column {
+                            width: 45%;
+                          }
+                          .column input[type="text"], .column input[type="radio"], .column input[type="checkbox"] {
+                            margin-top: 5px;
+                            margin-bottom: 15px;
+                          }
+
+                          .container section{
+                          width:50%;
+                          text-align: left;
+                          }
+
+                          .demo-input{
+                            padding: 18px 24px;
+                            margin-left: 12px;
+                            margin-top: 12px;
+                            border: none;
+                            outline:none;
+                            background: #f1f1f1;
+                            min-width: 200px;
+                            width: 100%;
+                            border-radius: 5px ;
+                          }
+
+                          .jspsych-content{
+                            text-align: left;
+                            margin: auto;
+                            height: 100vh;
+                            display: grid;
+                            place-content: center;
+                            place-items: start;
+                            width: 80%;
+                        }
+
+                          </style>
+
+                        <div class="container">
+
+                            <section>
+                                <label style="font-weight: bold">Level of Education:</label><br>
+                                <input type="radio" id="high_school" name="education" value="High School Degree/GED" required>
+                                <label for="high_school">High School Degree/GED</label><br>
+                                <input type="radio" id="some_college" name="education" value="Some College" required>
+                                <label for="some_coll">Some College</label><br>
+                                <input type="radio" id="college_degree" name="education" value="College Degree" required>
+                                <label for="bachelors">College Degree</label><br>
+                                <input type="radio" id="some_grad" name="education" value="Some Graduate Study" required>
+                                <label for="some_graduate">Some Graduate Study</label><br>
+                                <input type="radio" id="grad_degree" name="education" value="Graduate Degree" required>
+                                <label for="graduate">Graduate Degree</label><br><br>
+                            </section>
+
+
+                            <section>
+                                <label style="font-weight: bold">Are you a native speaker of American English (someone who grew up in the US and whose caregivers spoke English to them during childhood)?</label><br>
+                                <input type="radio" id="native_yes" name="native_speaker" value="Yes" required>
+                                <label for="native_yes">Yes</label><br>
+                                <input type="radio" id="native_no" name="native_speaker" value="No" required>
+                                <label for="native_no">No</label><br><br>
+                            </section>
+
+                            <section>
+                                <label style="font-weight: bold" for="comfortable_languages">Language(s) you use with most comfort and confidence:</label><br>
+                                <input class="demo-input" placeholder="Enter Languages" type="text" id="comfortable_language" name="comfortable_language" required><br><br>
+                            </section>
+
+                        </div>
+                      `,
+                button_label: 'Continue'
+            }
+
+            timeline.push(demographics_two)
+
+            const demographics_three = {
+                type: jsPsychSurveyMultiSelect,
+                preamble: "<strong>Please indicate if you did NOT understand the meaning of some of the words in Categories 1 and 2. Select all that apply:</strong>",
+                questions: [
+                    {
+                        prompt: "",
+                        options: [
+                            "action",
+                            "aware",
+                            "lively",
+                            "moving",
+                            "spirit",
+                            "inert",
+                            "object",
+                            "static",
+                            "still",
+                            "thing",
+                            "I understood the meaning of all of these words"
+                        ],
+                        required: true,
+                        horizontal: false
+                    }
+                ]
+            }
+
+            timeline.push(demographics_three)
+
+            const demographic_four = {
+                type: jsPsychSurveyHtmlForm,
+                html: `
+                    <label style="font-weight: bold" for="differences">How would you describe the difference between Category 1 words and Category 2 words?</label><br>
+                    <input class="demo-input" placeholder="Comments here" type="text" id="differences" name="differences" required>
+                `,
+                button_label: 'Continue'
+            }
+
+            timeline.push(demographic_four)
+
+            const comment_block = {
+                type: jsPsychSurveyHtmlForm,
+                html: `
+                    <div style="text-align: center;">
+                        <p style="font-weight: bold">Did you experience any technical difficulties with this task?</p>
+                        <input type="radio" id="technical_difficulties_yes" name="technical_difficulties" value="Yes" required>
+                        <label for="technical_difficulties_yes">Yes</label><br>
+                        <input type="radio" id="technical_difficulties_no" name="technical_difficulties" value="No" required>
+                        <label for="technical_difficulties_no">No</label><br><br>
+
+                        <label style="font-weight: bold" for="difficulty_description">If yes, please describe your experience.</label><br>
+                        <input class="demo-input" style="margin-left: 0;" placeholder="Describe any technical difficulties" type="text" id="difficulty_description" name="difficulty_description">
+                    </div>
+                `,
+                button_label: 'Continue',
+                on_finish: function(data) {
+                    sendResults(jsPsych.data.get().values(), session);
+                }
+            };
+
+            timeline.push(comment_block);
+
+            const end_block = {
+                type: jsPsychHtmlKeyboardResponse,
+                stimulus: '<p>Thanks for participating! You will be now redirected to Qualtrics within 10s.</p>',
+                choices:'NO_KEYS',
+                on_start: function (data) {
+                    setTimeout(()=>{
+                        window.location = `https://rit.az1.qualtrics.com/jfe/form/SV_0DkQMT9M3jFY16e?PROLIFIC_PID=${worker_id}&STUDY_ID=${study_id}&SESSION_ID=${session_id}`
+                    }, 10000)
+                }
+            }
+
+            timeline.push(end_block);
+
+            console.log(timeline)
+            jsPsych.run({timeline: timeline, preload_images: images})
+        }
+
+        async function sendResults(results, session) {
+            try {
+                for (let i = 0; i < results.length; i++) {
+                    results[i]["session"] = session
+                }
+                const response = await fetch(`${apiBase}/api/v1/results`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(results) // Send results as JSON
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json(); // Parse the JSON response
+                console.log(result.message); // Log success message
+            } catch (error) {
+                console.error('Error sending results:', error);
+            }
+        }
+
+        window.onload = function() {
+            if (!worker_id) {
+                askForProlificID()
+            } else {
+                fetchData();
+            }  
+        }
+    </script>
+</head>
+<body>
+
+</body>
+</html>
+
+{{ end }}
