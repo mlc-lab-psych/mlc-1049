@@ -13,6 +13,7 @@ var Logger *logrus.Logger = makeLogger()
 func makeLogger() *logrus.Logger {
 	var level logrus.Level
 
+	//for vercel
 	if os.Getenv("GIN_MODE") != "release" {
 		level = logrus.InfoLevel
 	} else {
