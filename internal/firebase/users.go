@@ -7,6 +7,7 @@ import (
 
 	"firebase.google.com/go/v4/db"
 	"github.com/WeatherGod3218/mlc-project-template/internal/airtable"
+	"github.com/WeatherGod3218/mlc-project-template/internal/logging"
 )
 
 type UserData struct {
@@ -31,12 +32,22 @@ func GetUserData(userId string) (string, int8, error) {
 		}
 
 		if raw == nil {
+			list := airtable.GetRandomAirtableSet()
 			result = UserData{
-				AirtableList:    airtable.GetRandomAirtableSet(),
+				AirtableList:    list,
 				CurrentAirtable: 0,
 			}
 			session = 1
-			return result, nil
+
+			next := 1
+			if len(list) <= 1 {
+				next = 0
+			}
+
+			return UserData{
+				AirtableList:    list,
+				CurrentAirtable: next,
+			}, nil
 		}
 
 		var userData UserData
@@ -45,23 +56,26 @@ func GetUserData(userId string) (string, int8, error) {
 		}
 
 		result = userData
+		session = int8(userData.CurrentAirtable) + 1
 
 		newTable := userData.CurrentAirtable + 1
-		session = int8(newTable + 1)
 		if newTable >= len(userData.AirtableList) {
 			newTable = 0
-			session = 1
 		}
 
 		newUserData := UserData{
 			AirtableList:    userData.AirtableList,
 			CurrentAirtable: newTable,
 		}
+
 		return newUserData, nil
 	})
 	if err != nil {
 		return "", 0, err
 	}
+
+	logging.Logger.Info(result.AirtableList[result.CurrentAirtable])
+	logging.Logger.Info(session)
 
 	return result.AirtableList[result.CurrentAirtable], session, nil
 }

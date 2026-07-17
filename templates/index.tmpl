@@ -879,15 +879,6 @@
                 }
 
                 timeline.push(demographic_four)
-
-                const thanking = {
-                    type: jsPsychHtmlKeyboardResponse,
-                    choices: [" "],
-                    stimulus: "<p>Thank you for completing the association task. You will now fill out a short questionnaire<br/><br/><br/><br/>" +
-                        "Press the <b>space bar</b> when you are ready to start.</p>"
-                };
-
-                timeline.push(thanking)
             }
 
             const comment_block = {
@@ -945,7 +936,7 @@
                     choices:'NO_KEYS',
                     on_start: function (data) {
                         setTimeout(()=>{
-                            window.location = `https://rit.az1.qualtrics.com/jfe/form/SV_0DkQMT9M3jFY16e?PROLIFIC_PID=${worker_id}&STUDY_ID=${study_id}&SESSION_ID=${session_id}`
+                            window.location = `https://rit.az1.qualtrics.com/jfe/form/SV_aUU6ZY9RS46UkGa?PROLIFIC_PID=${worker_id}&STUDY_ID=${study_id}&SESSION_ID=${session_id}`
                         }, 10000)
                     }
                 }

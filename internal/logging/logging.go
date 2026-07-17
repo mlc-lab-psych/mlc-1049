@@ -11,12 +11,19 @@ import (
 var Logger *logrus.Logger = makeLogger()
 
 func makeLogger() *logrus.Logger {
+	var level logrus.Level
 
-	level := logrus.InfoLevel
+	if os.Getenv("GIN_MODE") != "release" {
+		level = logrus.InfoLevel
+	} else {
+		level = logrus.WarnLevel
+
+	}
 
 	if testing.Testing() {
 		level = logrus.DebugLevel
 	}
+
 	return &logrus.Logger{
 		Out: os.Stdout,
 		Formatter: &logrus.TextFormatter{
