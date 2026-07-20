@@ -28,19 +28,6 @@ var staticFS embed.FS
 func main() {
 	err := redis.InitRedis()
 	if err != nil {
-		logging.Logger.WithFields(logrus.Fields{"error": err, "module": "main", "method": "main"}).Warn("error launching redis! Proceeding without redis")
-	}
-
-	if err := firebase.InitFirebase(); err != nil {
-		logging.Logger.WithFields(logrus.Fields{"error": err, "module": "main", "method": "LoadAllAirtables"}).Error("error initalizing firebase!")
-	}
-
-	if err := airtable.InitalizeAirtables(); err != nil {
-		logging.Logger.WithFields(logrus.Fields{"error": err, "module": "main", "method": "LoadAllAirtables"}).Fatal("error initalizing airtables!")
-	}
-
-	err := redis.InitRedis()
-	if err != nil {
 		logging.Logger.Warn("error launching redis! Proceeding without redis")
 	}
 
