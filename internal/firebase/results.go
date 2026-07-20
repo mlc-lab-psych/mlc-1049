@@ -11,7 +11,7 @@ import (
 )
 
 func PushResultsToDatabase(cleanedData []map[string]any) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	id, err := uuid.NewV7()

@@ -16,7 +16,7 @@ type UserData struct {
 }
 
 func GetUserData(userId string) (string, int8, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	keyLookup := fmt.Sprintf("mlc1049/userdata/%s", userId)

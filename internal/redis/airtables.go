@@ -53,7 +53,7 @@ func InitAirtableSets(tables []string) error {
 		return fmt.Errorf("Redis has not been initalized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*10)
 	defer cancel()
 
 	set, err := client.SetNX(ctx, QueueKey+":lock", 1, 0).Result()
@@ -83,7 +83,7 @@ func GetNextTable() (string, error) {
 		return "", fmt.Errorf("Airtable list is not initalized in redis cache!")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	for {
