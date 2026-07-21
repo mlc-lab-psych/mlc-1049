@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/fs"
 	"net/http"
 	"os"
@@ -33,30 +34,30 @@ func main() {
 
 	ready := make(chan error, 1)
 	go func() {
-		var err error
+		var firebaseErr, airtableErr error
 		for i := 0; i < 5; i++ {
-			err = firebase.InitFirebase()
-			if err == nil {
+			firebaseErr = firebase.InitFirebase()
+			if firebaseErr == nil {
 				break
 			}
-			logging.Logger.WithFields(logrus.Fields{"attempt": i, "error": err}).Warn("firebase init failed, retrying")
+			logging.Logger.WithFields(logrus.Fields{"attempt": i, "error": firebaseErr}).Warn("firebase init failed, retrying")
 			time.Sleep(time.Duration(i+1) * 500 * time.Millisecond)
 		}
+
 		for i := 0; i < 5; i++ {
-			err = airtable.InitalizeAirtables()
-			if err == nil {
+			airtableErr = airtable.InitalizeAirtables()
+			if airtableErr == nil {
 				break
 			}
-			logging.Logger.WithFields(logrus.Fields{"attempt": i, "error": err}).Warn("airbase init failed, retrying")
+			logging.Logger.WithFields(logrus.Fields{"attempt": i, "error": airtableErr}).Warn("airtable init failed, retrying")
 			time.Sleep(time.Duration(i+1) * 500 * time.Millisecond)
 		}
-		ready <- err
+		ready <- errors.Join(firebaseErr, airtableErr)
 	}()
 
 	if err := <-ready; err != nil {
-		logging.Logger.WithFields(logrus.Fields{"error": err}).Error("firebase init failed after retries")
-		// decide: continue in degraded mode, or os.Exit here deliberately
-		// since this is the "real" failure case, not a transient blip
+		logging.Logger.WithFields(logrus.Fields{"error": err}).Error("critical service init failed after retries")
+		os.Exit(1)
 	}
 	router := gin.Default()
 	router.Use(cors.Default())
